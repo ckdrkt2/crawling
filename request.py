@@ -1,20 +1,12 @@
 import requests
 import pandas as pd
-import time
 from tqdm import tqdm
+from collections import Counter
 
-# url = "https://smartstore.naver.com/lilydress/products/709465134"
-# url = "https://smartstore.naver.com/lilydress/products/341516198"
-# url = "https://smartstore.naver.com/ks1st/products/4497145782"
-# url = "https://smartstore.naver.com/ks1st/products/4497224588"
-# url = "https://smartstore.naver.com/ks1st/products/5083908974"
-
-date = '2021-08-03'
-
-def crawl(url):
+def crawl(url, date):
     url_elements = url.split('/')
 
-    productNo, merchant = url_elements[-1], url_elements[-3]
+    productNo = url_elements[-1]
 
     response = requests.get(url, stream=True)
 
@@ -33,7 +25,7 @@ def crawl(url):
             productNo = current[idx+13:idx+23].replace('"','')
             break
         ex = current[-30:]
-
+    
     # print(script_bit, id_bit)
     # print(merchantNo, productNo)
     # exit()
@@ -47,56 +39,65 @@ def crawl(url):
     json = response.json()
 
     total_page = json['totalPages']
-
+    
     index = 0
     df = pd.DataFrame(columns=['작성자', '작성일', '평점', '상품옵션', '리뷰내용', '좋아요', '이미지'])
 
-    for page in tqdm(range(1, total_page+1),ncols=100, desc=url_elements[-1]):
+    for page in tqdm(range(total_page, 0, -1), desc=url_elements[-1]):
 
         requests_url = 'https://smartstore.naver.com/i/v1/reviews/paged-reviews?page={0}&pageSize=20&merchantNo={1}&originProductNo={2}&sortType=REVIEW_CREATE_DATE_DESC'.format(page, merchantNo, productNo)
 
         json = requests.get(requests_url).json()
+        reviews = json['contents']
+        for i in range(len(reviews)-1, -1, -1):
 
-        for review in json['contents']:
+            user_id = reviews[i]['writerMemberId']
 
-            user_id = review['writerMemberId']
+            createDate = reviews[i]['createDate'][:10]
 
-            date = review['createDate']
-
-            star = review['reviewScore']
+            star = reviews[i]['reviewScore']
 
             try:
-                options = review['productOptionContent']
+                options = reviews[i]['productOptionContent']
             except:
                 options = ""
 
-            contents = review['reviewContent']
+            contents = reviews[i]['reviewContent']
 
             try:
-                like = review['helpCount']
+                like = reviews[i]['helpCount']
             except: like = 0
 
             img_url = []
-            if review['reviewAttaches']:
-                for attach in review['reviewAttaches']:
+            if reviews[i]['reviewAttaches']:
+                for attach in reviews[i]['reviewAttaches']:
                     img_url.append(attach['attachUrl'])
             if not img_url: img_url = ""
 
-            df.loc[index] = [user_id, date, star, options, contents, like, img_url]
+            df.loc[index] = [user_id, createDate, star, options, contents, like, img_url]
             
             index += 1
-
-
-    productNo = url_elements[-1]
-    df.to_csv('request/{0}.csv'.format(productNo), encoding='utf-8-sig', mode='w')
-
+    df = df[df['작성일'] > date]
+    df.to_csv('request/{0}.csv'.format(url_elements[-1]), encoding='utf-8-sig', mode='w')
 
 if __name__ == "__main__":
 
+    url = "https://smartstore.naver.com/lilydress/products/709465134"
+    # url = "https://smartstore.naver.com/lilydress/products/341516198"
+    # url = "https://smartstore.naver.com/ks1st/products/4497145782"
+    # url = "https://smartstore.naver.com/ks1st/products/4497224588"
+    # url = "https://smartstore.naver.com/ks1st/products/5083908974"
+
+    date = '2020-08-03'
+
     # url = pd.read_csv("lilydress/ss_urls.csv")
     # url = pd.read_csv("coively/urls.csv")
+    # url = pd.read_csv("moo.csv")
     # url = list(url['0'])
 
+    # a = []
+    
     # for i in url:
-    #     crawl(i)
-    crawl("https://brand.naver.com/melkin/products/581155411")
+    #     crawl(i, date)
+
+    crawl(url, date)
