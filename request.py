@@ -7,7 +7,17 @@ def get_response(page,merchantNo, productNo):
     requests_url = 'https://smartstore.naver.com/i/v1/reviews/paged-reviews?page={0}&pageSize=20&merchantNo={1}&originProductNo={2}&sortType=REVIEW_CREATE_DATE_DESC'.format(page, merchantNo, productNo)
     return requests.get(requests_url)
 
+def get_inkey(vid):
+    requests_url = 'https://smartstore.naver.com/i/v1/reviews/video/inkey/{0}'.format(vid)
+    return requests.get(requests_url).json()['inKey']
+
+def get_video_url(vid, inKey):
+    requests_url = 'https://apis.naver.com/rmcnmv/rmcnmv/vod/play/v2.0/{0}?key={1}'.format(vid, inKey)
+    return requests.get(requests_url).json()['videos']['list'][0]['source']
+
 def crawl(url, date):
+
+    if date == 'all': date = '2000-01-01'
 
     url_elements = url.split('/')
     # 상품번호
@@ -70,7 +80,7 @@ def crawl(url, date):
         
         while True:
             date_page = (bot + top) // 2
-            
+            print(bot, date_page, top)
             response = get_response(date_page, merchantNo, productNo)
             json = response.json()
 
@@ -85,10 +95,8 @@ def crawl(url, date):
                 bot = date_page            
 
     # 전체 데이터가 기준일에 포함되는 경우
-    else:
-        date_page = total_page   # 전체 데이터 추출
-
-
+    else: date_page = total_page   # 전체 데이터 추출
+    
     # 리뷰 추출
     index = 0
     df = pd.DataFrame(columns=['리뷰ID', '작성자', '작성일', '평점', '상품옵션', '리뷰내용', '좋아요', '이미지', '비디오'])
@@ -110,17 +118,16 @@ def crawl(url, date):
         reviews = json['contents']
         for i in range(len(reviews)-1, -1, -1):
 
-            createDate = reviews[i]['createDate'][:10]
-            if today == createDate:
+            createDate = reviews[i]['createDate']
+            if today == reviews[i]['createDate'][:10]:
                 page = 0
                 break
-            if date >= createDate:
+            if date >= reviews[i]['createDate'][:10]:
                 continue
 
             user_id = reviews[i]['writerMemberId']
 
             star = reviews[i]['reviewScore']
-            print(type(star))
 
             try:
                 options = reviews[i]['productOptionContent']
@@ -133,14 +140,22 @@ def crawl(url, date):
             except: like = 0
 
             img_list = []
+            video_list = []
             if reviews[i]['reviewAttaches']:
                 for attach in reviews[i]['reviewAttaches']:
                     img_list.append(attach['attachUrl'])
-            img_url = " | ".join(img_list)
-
-            if reviews[i]['reviewAttaches']:
-                for attach in reviews[i]['reviewAttaches']:
                     
+                    # video url 추출
+                    if 'attachVid' in attach:
+                        vid = attach['attachVid']
+                        inkey = get_inkey(vid)
+                        video_list.append(get_video_url(vid, inkey))
+            
+            img_url = " | ".join(img_list)
+            video_url = " | ".join(video_list)
+            if 'reviewComments' in reviews[i]:
+                if len(reviews[i]['reviewComments']) > 1:
+                    print(url, page)
 
             # dataframe에 저장
             df.loc[index] = [reviews[i]['id'], user_id, createDate, star, options, contents, like, img_url, video_url]
@@ -148,14 +163,14 @@ def crawl(url, date):
             index += 1
         page -= 1
 
-    df.to_csv('request/{0}.csv'.format(url_elements[-1]), encoding='utf-8-sig', mode='w')
+    df.to_csv('{0}.csv'.format(url_elements[-1]), encoding='utf-8-sig', mode='w')
 
     return True
 
 if __name__ == "__main__":
 
-    date = '2020-08-09'
+    date = 'all'
 
-    url = "https://smartstore.naver.com/lilydress/products/709465134"
+    url = "https://smartstore.naver.com/rankingdak/products/521363595"
 
     crawl(url, date)
