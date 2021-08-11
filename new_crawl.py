@@ -4,14 +4,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
 import pandas as pd
-from multiprocessing import Pool
-from math import ceil
-import parmap
-import tqdm
 import time
-
-url = pd.read_csv("lilydress/ss_urls.csv")
-url = list(url['0'])
 
 def crawl(url):
 
@@ -19,54 +12,33 @@ def crawl(url):
 
     # 상품번호 추출
     product_No = url.split('products/')[-1]
-    # print(product_No, 'start')
-    # print(url)
 
     chrome_options = webdriver.ChromeOptions()
     chrome_options.add_argument("--start-maximized")
-    # chrome_options.add_argument('headless')
+    chrome_options.add_argument('headless')
     chrome_options.add_experimental_option('excludeSwitches', ['enable-logging'])
 
     driver = webdriver.Chrome(options=chrome_options)
     driver.get(url)
     driver.implicitly_wait(1)
-    els = []
-    ss = time.time()
+    # ss = time.time()
 
     # 리뷰 수 추출
-    stack = 0
-    while len(els) == 0:
+    reviews = "0"
+    while True:
         try:
-            stack += 1
-            els = driver.find_elements(by=By.PARTIAL_LINK_TEXT , value='리뷰')
-        except Exception as ex:
-            print(product_No, 'num:', len(els))
-            print(ex)
-            return
-        if stack > 100: print(product_No, "리뷰 수 추출")
+            a_tags = driver.find_element_by_id("content").find_elements_by_tag_name("a")
+            break
+        except: pass
+        
+    for a_tag in a_tags:
+        if "#REVIEW" in a_tag.get_attribute("href"):
+                reviews = a_tag.text
+                break
+    count = int(reviews)
 
-    for e in els:
-        try:
-            if e.text[-1].isdigit():
-                element = e
-                break
-        except selenium.common.exceptions.StaleElementReferenceException:
-            time.sleep(0.5)
-            if any(chr.isdigit() for chr in e.text) and "(" not in e.text:
-                element = e
-                break
-    
-    try:
-        count = ceil(int(element.text.split('뷰')[-1].replace(",",""))/20)
-    except Exception as ex:
-        print(product_No, 'count error')
-        print(ex)
-        for i in els:
-            print(i.text, end='#')
-            pass
-        return
     # 리뷰 없으면 종료
-    if count == 0:
+    if not count:
         print(product_No, 'no review')
         return
 
@@ -200,7 +172,7 @@ def crawl(url):
 
             index += 1
 
-    print(product_No, "runtime:", int(time.time() - ss))
+    # print(product_No, "runtime:", int(time.time() - ss))
 
     df.to_csv('test/{0}.csv'.format(product_No), encoding='utf-8-sig', mode='w')
 
@@ -211,8 +183,6 @@ if __name__ == "__main__":
     start = time.time()
 
     # while True:
-    crawl("https://smartstore.naver.com/lilydress/products/341516198")
-
-    # aa = parmap.map(crawl, url, pm_parallel=True, pm_processes=8)
+    crawl("https://smartstore.naver.com/lilydress/products/709465134")
 
     print("total run time:", time.time() - start)
