@@ -1,7 +1,7 @@
 import requests
 import pandas as pd
 from datetime import datetime, timedelta
-
+import time
 
 def get_response(page,merchantNo, productNo):
     requests_url = 'https://smartstore.naver.com/i/v1/reviews/paged-reviews?page={0}&pageSize=20&merchantNo={1}&originProductNo={2}&sortType=REVIEW_CREATE_DATE_DESC'.format(page, merchantNo, productNo)
@@ -102,7 +102,7 @@ def crawl(url, date):
     
     # 페이지 저장
     point_page = date_page
-    first_id = get_response(1, merchantNo, productNo).json()['contents'][0]['id']
+    point_id = get_response(point_page, merchantNo, productNo).json()['contents'][0]['id']
 
     # 리뷰 추출
     index = 0
@@ -170,14 +170,13 @@ def crawl(url, date):
             
             index += 1
 
-        if (point_page - page) == 20:
+        if (point_page - page) == 100:
+            compare_id = get_response(point_page, merchantNo, productNo).json()['contents'][0]['id']
             print(page, "검사")
-            compare_id = get_response(1, merchantNo, productNo).json()['contents'][0]['id']
-            if first_id == compare_id:
+            if point_id == compare_id:
                 point_page = page
                 point_id = review_id
             else:
-                first_id = compare_id
                 print("review added", "index:", index)
                 while True:
                     reviews = get_response(point_page, merchantNo, productNo).json()['contents']
