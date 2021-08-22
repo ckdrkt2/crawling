@@ -197,7 +197,7 @@ def crawl(url, date):
 
 if __name__ == "__main__":
 
-    date = '2021-07-18'
+    date = '2021-05-18'
 
     url = "https://smartstore.naver.com/rankingdak/products/521363595"
 
